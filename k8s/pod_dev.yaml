@@ -1,0 +1,49 @@
+# Long-running interactive dev pod for IDD panoptic work.
+# Apply with:    kubectl apply -f k8s/pod_dev.yaml
+# Exec into it:  kubectl exec -it idd-panoptic-dev -- bash
+# Tear down:     kubectl delete pod idd-panoptic-dev
+#
+# Volume mount: /home/dgx-s-bmu-cse-230480/clearsar (host) → /workspace (pod).
+# Place the FinalTry repo at /workspace/FinalTry/ on the host before applying.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: idd-panoptic-dev
+  labels:
+    app: idd-panoptic-dev
+    app.kubernetes.io/name: local-storage
+spec:
+  restartPolicy: OnFailure
+  containers:
+    - name: pytorch
+      image: bmu-headnode:9443/nvcr.io/nvidia/pytorch:24.10-py3
+      command: ["/bin/bash", "-c", "while true; do sleep 3600; done"]
+      workingDir: /workspace
+      env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+      resources:
+        requests:
+          cpu: "16"
+          memory: "32Gi"
+          nvidia.com/mig-2g.35gb: 1
+        limits:
+          cpu: "16"
+          memory: "32Gi"
+          nvidia.com/mig-2g.35gb: 1
+      volumeMounts:
+        - name: clearsar-storage
+          mountPath: /workspace
+        - name: dshm
+          mountPath: /dev/shm
+  volumes:
+    - name: clearsar-storage
+      hostPath:
+        path: /home/dgx-s-bmu-cse-230480/clearsar
+        type: Directory
+    # Detectron2's DataLoader uses many shm-backed workers; the default 64 MB is too small.
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 8Gi

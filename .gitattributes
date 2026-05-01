@@ -1,0 +1,9 @@
+# Default: let git auto-detect text/binary
+* text=auto
+
+# Shell scripts must keep LF endings even on Windows checkouts,
+# otherwise bash chokes on \r in shebangs.
+*.sh text eol=lf
+
+# Python is LF too — avoids cross-platform diffs
+*.py text eol=lf

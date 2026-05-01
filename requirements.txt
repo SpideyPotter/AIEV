@@ -1,0 +1,15 @@
+# Data preparation + evaluation deps.
+# Model framework deps (torch, etc.) are deferred until we pick an architecture.
+
+numpy
+Pillow
+tqdm
+imageio
+numpngw
+pandas
+opencv-python
+
+# Official AutoNUE panoptic evaluation. Also available locally at
+# external/panopticapi (use `pip install -e ./external/panopticapi` if the
+# git install fails).
+panopticapi @ git+https://github.com/AutoNUE/panopticapi.git

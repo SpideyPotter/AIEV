@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+.python-version
+
+# Notebooks
+.ipynb_checkpoints/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Model artifacts
+outputs/
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.engine
+wandb/
+runs/
+lightning_logs/
+
+# Dataset (kept locally; see data/README.md)
+data/IDD_Segmentation/
+data/idd20kII/
+data/idd_full/
+
+# Pretrained checkpoints (downloaded by scripts/download_pretrain.py)
+pretrain/
+
+# External reference code (cloned locally; see README)
+external/

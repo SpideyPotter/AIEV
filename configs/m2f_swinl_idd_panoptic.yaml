@@ -1,0 +1,77 @@
+# Mask2Former Swin-L panoptic fine-tune for IDD.
+#
+# Inherits from Meta's Cityscapes-panoptic Swin-L config, then overrides:
+#  - dataset names (our IDD splits),
+#  - num_classes (Cityscapes 19 → IDD 26),
+#  - input size for 1280x720 leaderboard,
+#  - solver settings tuned for fine-tune from Cityscapes pretrain (lower LR,
+#    fewer iters, single-GPU batch size).
+#
+# Paths assume the in-pod layout:
+#   /workspace/FinalTry/        (repo)
+#   /workspace/FinalTry/data/idd_full/  (dataset)
+#   /workspace/FinalTry/pretrain/swinl_cityscapes_panoptic.pkl
+
+_BASE_: ../external/Mask2Former/configs/cityscapes/panoptic-segmentation/swin/maskformer2_swin_large_IN21k_384_bs16_90k.yaml
+
+DATASETS:
+  TRAIN: ("idd_panoptic_train",)
+  TEST: ("idd_panoptic_val",)
+
+MODEL:
+  WEIGHTS: "/workspace/FinalTry/pretrain/swinl_cityscapes_panoptic.pkl"
+  SEM_SEG_HEAD:
+    NUM_CLASSES: 26
+  MASK_FORMER:
+    NUM_OBJECT_QUERIES: 100
+    TEST:
+      OBJECT_MASK_THRESHOLD: 0.8
+      OVERLAP_THRESHOLD: 0.8
+      PANOPTIC_ON: True
+      INSTANCE_ON: False
+      SEMANTIC_ON: False
+
+INPUT:
+  IMAGE_SIZE: 1024
+  MIN_SCALE: 0.5
+  MAX_SCALE: 2.0
+  MIN_SIZE_TRAIN: (720,)
+  MIN_SIZE_TRAIN_SAMPLING: "choice"
+  MAX_SIZE_TRAIN: 1280
+  MIN_SIZE_TEST: 720
+  MAX_SIZE_TEST: 1280
+  CROP:
+    ENABLED: True
+    TYPE: "absolute"
+    SIZE: (720, 1280)
+    SINGLE_CATEGORY_MAX_AREA: 1.0
+  COLOR_AUG_SSD: True
+  SIZE_DIVISIBILITY: 32
+  FORMAT: "RGB"
+  DATASET_MAPPER_NAME: "mask_former_panoptic"
+
+DATALOADER:
+  NUM_WORKERS: 4
+  FILTER_EMPTY_ANNOTATIONS: False
+
+SOLVER:
+  IMS_PER_BATCH: 2
+  BASE_LR: 0.00005
+  MAX_ITER: 50000
+  STEPS: (40000, 47500)
+  WARMUP_ITERS: 1000
+  WARMUP_FACTOR: 0.001
+  CHECKPOINT_PERIOD: 5000
+  AMP:
+    ENABLED: True
+  WEIGHT_DECAY: 0.05
+  CLIP_GRADIENTS:
+    ENABLED: True
+    CLIP_TYPE: "full_model"
+    CLIP_VALUE: 0.01
+    NORM_TYPE: 2.0
+
+TEST:
+  EVAL_PERIOD: 5000
+
+OUTPUT_DIR: "/workspace/FinalTry/outputs/m2f_swinl_idd_panoptic"

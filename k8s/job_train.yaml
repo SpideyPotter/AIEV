@@ -1,0 +1,70 @@
+# Batch Job: run Mask2Former Swin-L IDD panoptic fine-tune to completion.
+# Apply with:        kubectl apply -f k8s/job_train.yaml
+# Watch progress:    kubectl logs -f job/idd-panoptic-train
+# Cancel:            kubectl delete job idd-panoptic-train
+#
+# Pre-requisites (run once on the dev pod, see scripts/setup_dgx.sh):
+#  1. Repo at      /workspace/FinalTry/
+#  2. Dataset at   /workspace/FinalTry/data/idd_full/
+#  3. Pretrain at  /workspace/FinalTry/pretrain/swinl_cityscapes_panoptic.pkl
+#  4. Env at       /workspace/.venv/  (created by setup_dgx.sh)
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: idd-panoptic-train
+  labels:
+    app: idd-panoptic-train
+spec:
+  backoffLimit: 0       # don't auto-retry — we want a real error if something fails
+  ttlSecondsAfterFinished: 86400   # auto-delete pod 24h after completion
+  template:
+    metadata:
+      labels:
+        app: idd-panoptic-train
+        app.kubernetes.io/name: local-storage
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: trainer
+          image: bmu-headnode:9443/nvcr.io/nvidia/pytorch:24.10-py3
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              cd /workspace/FinalTry
+              source /workspace/.venv/bin/activate
+              mkdir -p outputs
+              bash scripts/train.sh 2>&1 | tee -a outputs/train.log
+          workingDir: /workspace/FinalTry
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: NCCL_DEBUG
+              value: "INFO"
+            - name: OMP_NUM_THREADS
+              value: "8"
+          resources:
+            requests:
+              cpu: "16"
+              memory: "32Gi"
+              nvidia.com/mig-2g.35gb: 1
+            limits:
+              cpu: "16"
+              memory: "32Gi"
+              nvidia.com/mig-2g.35gb: 1
+          volumeMounts:
+            - name: clearsar-storage
+              mountPath: /workspace
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        - name: clearsar-storage
+          hostPath:
+            path: /home/dgx-s-bmu-cse-230480/clearsar
+            type: Directory
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
