@@ -9,14 +9,14 @@
 
 set -euo pipefail
 
-REPO=${REPO:-/workspace/FinalTry}
-VENV=${VENV:-/workspace/.venv}
+REPO=${REPO:-/workspace}
+PREFIX=${PREFIX:-/workspace/.local}
 CONFIG=${CONFIG:-$REPO/configs/m2f_swinl_idd_panoptic.yaml}
 
 cd "$REPO"
 
 # shellcheck source=/dev/null
-source "$VENV/bin/activate"
+source "$PREFIX/activate.sh"
 
 export PYTHONPATH="$REPO:$REPO/external/Mask2Former:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1

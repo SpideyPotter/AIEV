@@ -3,8 +3,19 @@
 # Exec into it:  kubectl exec -it idd-panoptic-dev -- bash
 # Tear down:     kubectl delete pod idd-panoptic-dev
 #
-# Volume mount: /home/dgx-s-bmu-cse-230480/clearsar (host) → /workspace (pod).
-# Place the FinalTry repo at /workspace/FinalTry/ on the host before applying.
+# Volume mount: /home/dgx-s-bmu-cse-230480/final/FinalTry (host) → /workspace (pod).
+#
+# Persistence design: python packages live at /workspace/.local (hostPath-mounted)
+# so they survive pod restarts. PYTHONPATH/PATH are set via env vars below so
+# imports work without sourcing activate.sh in every shell. The patched
+# detectron2 source also persists at /workspace/.local because we install with
+# `pip install --prefix=/workspace/.local`.
+#
+# On a fresh pod (first time only):
+#   1. kubectl apply -f k8s/pod_dev.yaml
+#   2. kubectl exec -it idd-panoptic-dev -- bash scripts/setup_dgx.sh
+#   3. kubectl exec -it idd-panoptic-dev -- python3 scripts/patch_detectron2.py
+# After a restart, no manual steps — env vars below pick up the persistent install.
 
 apiVersion: v1
 kind: Pod
@@ -23,6 +34,14 @@ spec:
       env:
         - name: PYTHONUNBUFFERED
           value: "1"
+        # pip with --prefix on Debian-flavoured Python writes to BOTH
+        #   $PREFIX/lib/python3.10/site-packages    (setup.py installs)
+        #   $PREFIX/local/lib/python3.10/dist-packages   (pip wheel installs)
+        # so we add both to PYTHONPATH.
+        - name: PYTHONPATH
+          value: "/workspace/.local/lib/python3.10/site-packages:/workspace/.local/local/lib/python3.10/dist-packages:/workspace/.local/lib/python3.10/dist-packages"
+        - name: PATH
+          value: "/workspace/.local/bin:/workspace/.local/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
       resources:
         requests:
           cpu: "16"
@@ -33,14 +52,14 @@ spec:
           memory: "32Gi"
           nvidia.com/mig-2g.35gb: 1
       volumeMounts:
-        - name: clearsar-storage
+        - name: storage
           mountPath: /workspace
         - name: dshm
           mountPath: /dev/shm
   volumes:
-    - name: clearsar-storage
+    - name: storage
       hostPath:
-        path: /home/dgx-s-bmu-cse-230480/clearsar
+        path: /home/dgx-s-bmu-cse-230480/final/FinalTry
         type: Directory
     # Detectron2's DataLoader uses many shm-backed workers; the default 64 MB is too small.
     - name: dshm

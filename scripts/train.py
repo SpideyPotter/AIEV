@@ -15,6 +15,18 @@ import os
 import sys
 from pathlib import Path
 
+import warnings
+
+
+# Silence deprecation/future warnings from torch + timm + Mask2Former CUDA op
+# before any heavy imports run. These fire on every iter and bury real errors.
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning, module="torch")
+os.environ.setdefault("PYTHONWARNINGS", "ignore::DeprecationWarning,ignore::FutureWarning")
+# torch.cuda.amp deprecation spam
+os.environ.setdefault("TORCH_WARN_ONCE", "1")
+
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "external" / "Mask2Former"))

@@ -8,9 +8,9 @@
 #    fewer iters, single-GPU batch size).
 #
 # Paths assume the in-pod layout:
-#   /workspace/FinalTry/        (repo)
-#   /workspace/FinalTry/data/idd_full/  (dataset)
-#   /workspace/FinalTry/pretrain/swinl_cityscapes_panoptic.pkl
+#   /workspace/                 (repo, hostPath-mounted)
+#   /workspace/data/idd_full/   (dataset)
+#   /workspace/pretrain/swinl_cityscapes_panoptic.pkl
 
 _BASE_: ../external/Mask2Former/configs/cityscapes/panoptic-segmentation/swin/maskformer2_swin_large_IN21k_384_bs16_90k.yaml
 
@@ -19,11 +19,13 @@ DATASETS:
   TEST: ("idd_panoptic_val",)
 
 MODEL:
-  WEIGHTS: "/workspace/FinalTry/pretrain/swinl_cityscapes_panoptic.pkl"
+  WEIGHTS: "/workspace/pretrain/swinl_cityscapes_panoptic.pkl"
   SEM_SEG_HEAD:
     NUM_CLASSES: 26
   MASK_FORMER:
-    NUM_OBJECT_QUERIES: 100
+    # 200 queries to match the Cityscapes-panoptic Swin-L pretrain
+    # (Meta's Cityscapes panoptic config uses 200; COCO panoptic uses 100).
+    NUM_OBJECT_QUERIES: 200
     TEST:
       OBJECT_MASK_THRESHOLD: 0.8
       OVERLAP_THRESHOLD: 0.8
@@ -32,33 +34,48 @@ MODEL:
       SEMANTIC_ON: False
 
 INPUT:
+  # Train at 512x1024 (Cityscapes default) so Swin-L fits at batch 4 on
+  # the 35 GB MIG. Eval at native 720x1280 (the AutoNUE leaderboard size).
   IMAGE_SIZE: 1024
   MIN_SCALE: 0.5
   MAX_SCALE: 2.0
-  MIN_SIZE_TRAIN: (720,)
+  MIN_SIZE_TRAIN: (512,)
   MIN_SIZE_TRAIN_SAMPLING: "choice"
-  MAX_SIZE_TRAIN: 1280
+  MAX_SIZE_TRAIN: 1024
   MIN_SIZE_TEST: 720
   MAX_SIZE_TEST: 1280
   CROP:
     ENABLED: True
     TYPE: "absolute"
-    SIZE: (720, 1280)
+    SIZE: (512, 1024)
     SINGLE_CATEGORY_MAX_AREA: 1.0
   COLOR_AUG_SSD: True
-  SIZE_DIVISIBILITY: 32
+  # Cityscapes base uses -1 here. The panoptic mapper does:
+  #   pad_size = [0, SIZE_DIVISIBILITY - W, 0, SIZE_DIVISIBILITY - H]
+  # When SIZE_DIVISIBILITY=32 and our crop is 720x1280, those become
+  # [0, -1248, 0, -688] — F.pad with negative values CROPS the image
+  # down to 32x32. That single bug collapsed all training to 32x32 patches
+  # and is why our first two runs only learned sky/vegetation.
+  SIZE_DIVISIBILITY: -1
   FORMAT: "RGB"
   DATASET_MAPPER_NAME: "mask_former_panoptic"
 
 DATALOADER:
-  NUM_WORKERS: 4
+  NUM_WORKERS: 8
   FILTER_EMPTY_ANNOTATIONS: False
 
 SOLVER:
-  IMS_PER_BATCH: 2
-  BASE_LR: 0.00005
-  MAX_ITER: 50000
-  STEPS: (40000, 47500)
+  # Sizing: batch 16 at 720x1280 OOMs on the 35 GB MIG slice (peaked at
+  # 30.8 GB at iter 0 then crashed). Earlier "8.6 GB at batch 16" reading
+  # was misleading because SIZE_DIVISIBILITY=32 was secretly cropping
+  # everything to 32x32. With real full-res inputs, batch 4 is what fits.
+  #
+  # LR stays at 1e-4 (Cityscapes config default for fine-tune). Iters
+  # raised 4x so total samples-seen matches the original batch-16 plan.
+  IMS_PER_BATCH: 4
+  BASE_LR: 0.0001
+  MAX_ITER: 60000
+  STEPS: (50000, 57500)
   WARMUP_ITERS: 1000
   WARMUP_FACTOR: 0.001
   CHECKPOINT_PERIOD: 5000
@@ -72,6 +89,10 @@ SOLVER:
     NORM_TYPE: 2.0
 
 TEST:
-  EVAL_PERIOD: 5000
+  # Mid-training eval disabled. detectron2's panoptic_evaluation can produce
+  # PNG↔JSON inconsistencies on under-trained models (segments listed in
+  # JSON with no corresponding pixels, or vice-versa), which crashes
+  # panopticapi. Once the model is trained, these vanish. Eval after.
+  EVAL_PERIOD: 0
 
-OUTPUT_DIR: "/workspace/FinalTry/outputs/m2f_swinl_idd_panoptic"
+OUTPUT_DIR: "/workspace/outputs/m2f_swinl_idd_panoptic"

@@ -1,0 +1,15 @@
+panopticapi-0.1.dist-info/INSTALLER,sha256=zuuue4knoyJ-UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg,4
+panopticapi-0.1.dist-info/METADATA,sha256=Ng2gr8ZewfOoiKkkjmBF5Vnu5wW6QOHDmZLMvPQUJs8,177
+panopticapi-0.1.dist-info/RECORD,,
+panopticapi-0.1.dist-info/REQUESTED,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
+panopticapi-0.1.dist-info/WHEEL,sha256=G16H4A3IeoQmnOrYV4ueZGKSjhipXx8zc8nu9FGlvMA,92
+panopticapi-0.1.dist-info/direct_url.json,sha256=wns8JJarp0gZ3FC5_g6l97YJgkZTWPiQKJNJOQFMVpE,138
+panopticapi-0.1.dist-info/top_level.txt,sha256=gU7hv-mEBW7eJVpdzFQCh8N9pTegCvgTDQlHpB4scW8,12
+panopticapi/__init__.py,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
+panopticapi/__pycache__/__init__.cpython-310.pyc,,
+panopticapi/__pycache__/combine_semantic_and_instance_predictions.cpython-310.pyc,,
+panopticapi/__pycache__/evaluation.cpython-310.pyc,,
+panopticapi/__pycache__/utils.cpython-310.pyc,,
+panopticapi/combine_semantic_and_instance_predictions.py,sha256=MNxtscEpd3pKypzqAqUZ8hhZIcnhA-CLto1SgWgILmg,9610
+panopticapi/evaluation.py,sha256=BLVd0BKAeb4dn3k6Aenr7ZX2YcsiQMLsnkWtyr2oVCU,10692
+panopticapi/utils.py,sha256=gm9NTFpU_bZLwe3R2ea1CCSWSXFkV9-W2wm30juFono,3301
