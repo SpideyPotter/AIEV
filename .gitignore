@@ -47,3 +47,4 @@ pretrain/
 
 # External reference code (cloned locally; see README)
 external/
+.local/

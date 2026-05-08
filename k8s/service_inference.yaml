@@ -1,0 +1,23 @@
+# Service for panoptic cloud inference API.
+# Apply with:        kubectl apply -f k8s/service_inference.yaml
+# Check:             kubectl get svc idd-panoptic-inference
+# In-cluster URL:    http://idd-panoptic-inference:8000/health
+# Remove:            kubectl delete -f k8s/service_inference.yaml
+#
+# This selects pods created by k8s/job_inference.yaml (label app=idd-panoptic-inference).
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: idd-panoptic-inference
+  labels:
+    app: idd-panoptic-inference
+spec:
+  selector:
+    app: idd-panoptic-inference
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+  type: ClusterIP

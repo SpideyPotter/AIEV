@@ -1,0 +1,77 @@
+# Long-running Job: serve panoptic cloud inference API.
+# Apply with:        kubectl apply -f k8s/job_inference.yaml
+# Watch logs:        kubectl logs -f job/idd-panoptic-inference
+# Get pod name:      kubectl get pods -l app=idd-panoptic-inference
+# Port-forward:      kubectl port-forward pod/<pod-name> 8000:8000
+# Cancel:            kubectl delete job idd-panoptic-inference
+#
+# Notes:
+# - This Job is intentionally long-running (uvicorn process).
+# - For a production always-on service with rolling updates, Deployment is preferred.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: idd-panoptic-inference
+  labels:
+    app: idd-panoptic-inference
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: idd-panoptic-inference
+        app.kubernetes.io/name: local-storage
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: inference
+          image: bmu-headnode:9443/nvcr.io/nvidia/pytorch:24.10-py3
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              cd /workspace
+              python3 -m pip install --prefix=/workspace/.local fastapi uvicorn python-multipart
+              python3 scripts/cloud_inference_api.py
+          workingDir: /workspace
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            # Override if your checkpoint is elsewhere on mounted storage.
+            - name: MODEL_CONFIG
+              value: "/workspace/configs/m2f_swinl_idd_panoptic.yaml"
+            - name: MODEL_WEIGHTS
+              value: "/workspace/outputs/m2f_swinl_idd_panoptic/model_0044999.pth"
+            # Keep in sync with k8s/pod_dev.yaml because pip --prefix writes to both.
+            - name: PYTHONPATH
+              value: "/workspace/.local/lib/python3.10/site-packages:/workspace/.local/local/lib/python3.10/dist-packages:/workspace/.local/lib/python3.10/dist-packages"
+            - name: PATH
+              value: "/workspace/.local/bin:/workspace/.local/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+          resources:
+            requests:
+              cpu: "8"
+              memory: "16Gi"
+              nvidia.com/mig-2g.35gb: 1
+            limits:
+              cpu: "8"
+              memory: "16Gi"
+              nvidia.com/mig-2g.35gb: 1
+          volumeMounts:
+            - name: storage
+              mountPath: /workspace
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        - name: storage
+          hostPath:
+            path: /home/dgx-s-bmu-cse-230480/final/FinalTry
+            type: Directory
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
