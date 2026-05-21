@@ -1,11 +1,25 @@
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
 *.so
+*.egg
 *.egg-info/
 .eggs/
 build/
 dist/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.cache/
 
 # Virtualenvs
 .venv/
@@ -20,11 +34,16 @@ env/
 .idea/
 .vscode/
 *.swp
+*~
 
 # OS
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Logs
+*.log
+logs/
 
 # Model artifacts
 outputs/
@@ -47,4 +66,14 @@ pretrain/
 
 # External reference code (cloned locally; see README)
 external/
+
+# Local pip / runtime installs (never commit)
 .local/
+
+# GTA / debug visuals (regenerate locally)
+gta_debug_*.png
+images/gta_debug_*.png
+
+# Optional large local assets (uncomment to keep out of git)
+# Gtala.jpg
+# road.jpg
