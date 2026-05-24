@@ -73,18 +73,6 @@ FinalTry/
         [PQ / SQ / RQ metrics]
 ```
 
-## Roadmap
-
-- [x] Repo skeleton
-- [x] Clone reference repos
-- [ ] Merge dataset parts → `data/idd_full/`
-- [ ] Generate panoptic ground truth (`scripts/prepare_panoptic.sh`)
-- [ ] Pick a model architecture (Mask2Former / Panoptic-DeepLab / UPSNet …)
-- [ ] Dataset loader
-- [ ] Training loop
-- [ ] Prediction + evaluation on val split
-- [ ] Generate predictions on test split
-- [ ] Submit to leaderboard
 
 ## References
 
