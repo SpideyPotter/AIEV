@@ -1,0 +1,82 @@
+# Exp A0: Mask2Former R50 trained from random init on IDD-20k panoptic.
+#
+# No external weights of any kind (no ImageNet, no Cityscapes). Differences
+# from Meta's Cityscapes R50 panoptic recipe, and why:
+#  - WEIGHTS "": random init.
+#  - RESNETS.NORM GN: FrozenBN has no learnable statistics, so a randomly
+#    initialised backbone cannot train with it; SyncBN at batch 4 on one GPU
+#    is noisy. GroupNorm is batch-size independent.
+#  - BACKBONE_MULTIPLIER 1.0: the 0.1 default assumes a pretrained backbone.
+#  - PIXEL_MEAN/STD measured on 600 random IDD train frames (RGB).
+#  - Multi-scale train sizes are the Cityscapes recipe rescaled to IDD's
+#    720-pixel short side.
+#  - Warmup is required; the upstream config has none because it starts
+#    from ImageNet weights.
+
+_BASE_: ../external/Mask2Former/configs/cityscapes/panoptic-segmentation/maskformer2_R50_bs16_90k.yaml
+
+DATASETS:
+  TRAIN: ("idd_panoptic_train",)
+  TEST: ("idd_panoptic_val",)
+
+MODEL:
+  WEIGHTS: ""
+  PIXEL_MEAN: [91.323, 94.844, 93.004]
+  PIXEL_STD: [67.172, 70.357, 75.679]
+  BACKBONE:
+    FREEZE_AT: 0
+  RESNETS:
+    NORM: "GN"
+  SEM_SEG_HEAD:
+    NUM_CLASSES: 26
+  MASK_FORMER:
+    NUM_OBJECT_QUERIES: 100
+    TEST:
+      SEMANTIC_ON: False
+      INSTANCE_ON: False
+      PANOPTIC_ON: True
+      OBJECT_MASK_THRESHOLD: 0.8
+      OVERLAP_THRESHOLD: 0.8
+
+INPUT:
+  MIN_SIZE_TRAIN: (360, 432, 504, 576, 648, 720, 792, 864, 936, 1008, 1080, 1152, 1224, 1296, 1368, 1440)
+  MIN_SIZE_TRAIN_SAMPLING: "choice"
+  MAX_SIZE_TRAIN: 2560
+  MIN_SIZE_TEST: 720
+  MAX_SIZE_TEST: 1280
+  CROP:
+    ENABLED: True
+    TYPE: "absolute"
+    SIZE: (512, 1024)
+    SINGLE_CATEGORY_MAX_AREA: 1.0
+  COLOR_AUG_SSD: True
+  # Must stay -1: with 32 the panoptic mapper pads by a negative amount and
+  # silently crops every sample to 32x32 (see EXPERIMENTS.md, 2026-05-02/03).
+  SIZE_DIVISIBILITY: -1
+  FORMAT: "RGB"
+  DATASET_MAPPER_NAME: "mask_former_panoptic"
+
+DATALOADER:
+  NUM_WORKERS: 8
+  FILTER_EMPTY_ANNOTATIONS: False
+
+SOLVER:
+  IMS_PER_BATCH: 4
+  BASE_LR: 0.0001
+  BACKBONE_MULTIPLIER: 1.0
+  MAX_ITER: 150000
+  LR_SCHEDULER_NAME: "WarmupPolyLR"
+  WARMUP_ITERS: 3000
+  WARMUP_FACTOR: 0.001
+  CHECKPOINT_PERIOD: 10000
+  AMP:
+    ENABLED: True
+
+TEST:
+  # Needs the patched evaluator (scripts/patch_detectron2.py); unpatched
+  # detectron2 writes PNG/JSON mismatches that crash panopticapi on
+  # under-trained models. ~4 min per eval on the MIG slice.
+  EVAL_PERIOD: 10000
+
+SEED: 42
+OUTPUT_DIR: "/workspace/outputs/m2f_r50_idd_scratch"

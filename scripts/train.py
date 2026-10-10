@@ -40,6 +40,7 @@ from mask2former import (  # noqa: E402,F401
     MaskFormerSemanticDatasetMapper,
 )
 
+from src.config import add_idd_config  # noqa: E402
 from src.datasets.idd_panoptic import register_idd_panoptic  # noqa: E402
 
 register_idd_panoptic(REPO)
@@ -49,15 +50,14 @@ from detectron2.config import get_cfg  # noqa: E402
 from detectron2.engine import default_argument_parser, default_setup, launch  # noqa: E402
 from detectron2.projects.deeplab import add_deeplab_config  # noqa: E402
 
-# Mask2Former's repo defines its own Trainer with the right data mappers / evaluators.
-sys.path.insert(0, str(REPO / "external" / "Mask2Former"))
-from train_net import Trainer  # noqa: E402
+from src.trainer import IDDTrainer as Trainer  # noqa: E402
 
 
 def setup(args):
     cfg = get_cfg()
     add_deeplab_config(cfg)
     add_maskformer2_config(cfg)
+    add_idd_config(cfg)
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     cfg.freeze()

@@ -1,0 +1,76 @@
+# Batch Job: from-scratch Mask2Former R50 training (Exp A0 by default).
+#
+# Apply:    kubectl apply -f k8s/job_train_scratch.yaml
+# Logs:     kubectl logs -f job/idd-r50-scratch
+# Cancel:   kubectl delete job idd-r50-scratch
+#
+# For the ablations use scripts/submit_train_job.sh, which rewrites the job
+# name, config and log path below and applies the result.
+#
+# The MIG quota is 1, so delete the dev pod first:
+#   kubectl delete pod idd-panoptic-dev
+#
+# Training resumes from OUTPUT_DIR/last_checkpoint, so re-applying after a
+# pod failure continues the run instead of restarting it.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: idd-r50-scratch
+  labels:
+    app: idd-r50-scratch
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 172800
+  template:
+    metadata:
+      labels:
+        app: idd-r50-scratch
+        app.kubernetes.io/name: local-storage
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: trainer
+          image: bmu-headnode:9443/nvcr.io/nvidia/pytorch:24.10-py3
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              cd /workspace
+              mkdir -p outputs/logs
+              CONFIG=configs/m2f_r50_idd_scratch.yaml \
+                bash scripts/train.sh --resume 2>&1 | tee -a outputs/logs/m2f_r50_idd_scratch.log
+          workingDir: /workspace
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: OMP_NUM_THREADS
+              value: "8"
+            - name: PYTHONPATH
+              value: "/workspace/.local/lib/python3.10/site-packages:/workspace/.local/local/lib/python3.10/dist-packages:/workspace/.local/lib/python3.10/dist-packages"
+            - name: PATH
+              value: "/workspace/.local/bin:/workspace/.local/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+          resources:
+            requests:
+              cpu: "12"
+              memory: "26Gi"
+              nvidia.com/mig-2g.35gb: 1
+            limits:
+              cpu: "12"
+              memory: "26Gi"
+              nvidia.com/mig-2g.35gb: 1
+          volumeMounts:
+            - name: storage
+              mountPath: /workspace
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        - name: storage
+          hostPath:
+            path: /home/dgx-s-bmu-cse-230480/final/FinalTry
+            type: Directory
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
