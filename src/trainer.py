@@ -36,5 +36,10 @@ class IDDTrainer(Trainer):
                         threshold, rf.mean().item(), int((rf > 1).sum()), len(rf))
             sampler = RepeatFactorTrainingSampler(rf, seed=cfg.SEED if cfg.SEED >= 0 else None)
 
-        mapper = MaskFormerPanopticDatasetMapper(cfg, True)
+        if cfg.IDD.COPY_PASTE.ENABLED:
+            from src.datasets.copy_paste import CopyPastePanopticDatasetMapper
+
+            mapper = CopyPastePanopticDatasetMapper(cfg, True, dataset)
+        else:
+            mapper = MaskFormerPanopticDatasetMapper(cfg, True)
         return build_detection_train_loader(cfg, mapper=mapper, dataset=dataset, sampler=sampler)

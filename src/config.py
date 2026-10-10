@@ -23,10 +23,11 @@ def add_idd_config(cfg) -> None:
     cfg.IDD.COPY_PASTE.MAX_SEGMENTS = 3
     # Segments smaller than this (pixels, at source resolution) are skipped.
     cfg.IDD.COPY_PASTE.MIN_AREA = 64
-    cfg.IDD.COPY_PASTE.CLASSES = ["bicycle", "traffic light", "rider", "person", "traffic sign"]
+    cfg.IDD.COPY_PASTE.CLASSES = ["bicycle", "traffic light", "traffic sign", "vehicle fallback"]
 
     # Exp A3: per-class weights on the mask-classification cross-entropy.
-    # MODE: "none" | "inv_freq"  (w(c) = (f_max / f(c)) ** POWER, clamped to MAX).
+    # MODE: "none" | "img_freq" | "seg_freq"; w(c) = (n_max / n(c)) ** POWER,
+    # clamped to MAX (see src/datasets/class_stats.py).
     cfg.IDD.CLASS_WEIGHT = CN()
     cfg.IDD.CLASS_WEIGHT.MODE = "none"
     cfg.IDD.CLASS_WEIGHT.POWER = 0.5

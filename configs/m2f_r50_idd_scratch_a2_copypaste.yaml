@@ -1,0 +1,11 @@
+# Exp A2: A0 + copy-paste of rare-class segments (sampling stays uniform so
+# the effect is isolated from A1).
+_BASE_: m2f_r50_idd_scratch.yaml
+
+IDD:
+  COPY_PASTE:
+    ENABLED: True
+    PROB: 0.5
+    MAX_SEGMENTS: 3
+    MIN_AREA: 64
+    CLASSES: ["bicycle", "traffic light", "traffic sign", "vehicle fallback"]
