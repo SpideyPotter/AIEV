@@ -51,6 +51,8 @@ spec:
               value: "/workspace/.local/lib/python3.10/site-packages:/workspace/.local/local/lib/python3.10/dist-packages:/workspace/.local/lib/python3.10/dist-packages"
             - name: PATH
               value: "/workspace/.local/bin:/workspace/.local/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+          # Below the 16 CPU / 32Gi quota so a small CPU-only pod can run
+          # alongside (k8s/pod_cpu.yaml).
           resources:
             requests:
               cpu: "12"
