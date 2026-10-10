@@ -1,0 +1,12 @@
+# Exp A3: A0 + inverse image-frequency weights on the classification CE.
+# img_freq (power 0.5, max 5) gives traffic light 4.2, bicycle 3.3,
+# bridge 3.1, guard rail 3.0 and keeps head classes near 1. seg_freq would
+# also up-weight every stuff class ~2x (one segment per image), which
+# confounds the thing/stuff balance.
+_BASE_: m2f_r50_idd_scratch.yaml
+
+IDD:
+  CLASS_WEIGHT:
+    MODE: "img_freq"
+    POWER: 0.5
+    MAX: 5.0

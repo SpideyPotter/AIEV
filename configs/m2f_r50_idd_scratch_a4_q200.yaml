@@ -1,0 +1,8 @@
+# Exp A4b: A0 with 200 object queries (IDD averages ~34 segments per image,
+# max 226). Query count is a learned embedding, so unlike the mask
+# thresholds it cannot be swept at inference time.
+_BASE_: m2f_r50_idd_scratch.yaml
+
+MODEL:
+  MASK_FORMER:
+    NUM_OBJECT_QUERIES: 200

@@ -12,12 +12,27 @@ from detectron2.data import build_detection_train_loader, get_detection_dataset_
 from detectron2.data.samplers import RepeatFactorTrainingSampler
 from train_net import Trainer
 
-from src.datasets.class_stats import repeat_factors
+from src.datasets.class_stats import class_loss_weights, repeat_factors
 
 logger = logging.getLogger("idd.trainer")
 
 
 class IDDTrainer(Trainer):
+    @classmethod
+    def build_model(cls, cfg):
+        model = super().build_model(cfg)
+        cw = cfg.IDD.CLASS_WEIGHT
+        if cw.MODE != "none":
+            # SetCriterion uses empty_weight as the CE class-weight vector; the
+            # last entry is the no-object weight and is left untouched.
+            k = cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES
+            dataset = get_detection_dataset_dicts(cfg.DATASETS.TRAIN, filter_empty=False)
+            weights = class_loss_weights(dataset, k, cw.MODE, cw.POWER, cw.MAX)
+            model.criterion.empty_weight[:k] = torch.tensor(weights)
+            logger.info("Class-weighted CE (%s): %s", cw.MODE,
+                        [round(w, 2) for w in model.criterion.empty_weight.tolist()])
+        return model
+
     @classmethod
     def build_train_loader(cls, cfg):
         if cfg.INPUT.DATASET_MAPPER_NAME != "mask_former_panoptic":
