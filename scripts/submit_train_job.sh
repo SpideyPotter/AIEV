@@ -21,10 +21,11 @@ TEMPLATE="$REPO/k8s/job_train_scratch.yaml"
 STEM=$(basename "$CONFIG" .yaml)
 JOB=$(echo "$STEM" | sed -e 's/^m2f_/idd-/' -e 's/_idd_/-/' -e 's/_/-/g')
 
+[ "$CONFIG" = "configs/${STEM}.yaml" ] || { echo "config must live in configs/" >&2; exit 1; }
+
 MANIFEST=$(sed \
     -e "s#idd-r50-scratch#${JOB}#g" \
-    -e "s#configs/m2f_r50_idd_scratch.yaml#${CONFIG}#" \
-    -e "s#outputs/logs/m2f_r50_idd_scratch.log#outputs/logs/${STEM}.log#" \
+    -e "s#STEM=m2f_r50_idd_scratch\$#STEM=${STEM}#" \
     "$TEMPLATE")
 
 if [ "$DRY_RUN" = "--dry-run" ]; then

@@ -5,7 +5,9 @@
 # Cancel:   kubectl delete job idd-r50-scratch
 #
 # For the ablations use scripts/submit_train_job.sh, which rewrites the job
-# name, config and log path below and applies the result.
+# name and STEM below and applies the result. Outputs go to outputs/$STEM/
+# regardless of the config's OUTPUT_DIR; after training the job writes
+# outputs/$STEM/perclass_pq.{txt,json}.
 #
 # The MIG quota is 1, so delete the dev pod first:
 #   kubectl delete pod idd-panoptic-dev
@@ -37,10 +39,18 @@ spec:
             - -c
             - |
               set -euo pipefail
+              STEM=m2f_r50_idd_scratch
               cd /workspace
               mkdir -p outputs/logs
-              CONFIG=configs/m2f_r50_idd_scratch.yaml \
-                bash scripts/train.sh --resume 2>&1 | tee -a outputs/logs/m2f_r50_idd_scratch.log
+              OUT=/workspace/outputs/$STEM
+              LOG=outputs/logs/$STEM.log
+              CONFIG=configs/$STEM.yaml \
+                bash scripts/train.sh --resume OUTPUT_DIR "$OUT" 2>&1 | tee -a "$LOG"
+              export PYTHONPATH="/workspace:/workspace/external/Mask2Former:$PYTHONPATH"
+              python3 scripts/eval_val_perclass_pq.py \
+                --config-file configs/$STEM.yaml --weights "$OUT/model_final.pth" \
+                --report "$OUT/perclass_pq.txt" --metrics-json "$OUT/perclass_pq.json" \
+                2>&1 | grep -v '^Core' | tee -a "$LOG"
           workingDir: /workspace
           env:
             - name: PYTHONUNBUFFERED
@@ -51,16 +61,14 @@ spec:
               value: "/workspace/.local/lib/python3.10/site-packages:/workspace/.local/local/lib/python3.10/dist-packages:/workspace/.local/lib/python3.10/dist-packages"
             - name: PATH
               value: "/workspace/.local/bin:/workspace/.local/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          # Below the 16 CPU / 32Gi quota so a small CPU-only pod can run
-          # alongside (k8s/pod_cpu.yaml).
           resources:
             requests:
-              cpu: "12"
-              memory: "26Gi"
+              cpu: "16"
+              memory: "32Gi"
               nvidia.com/mig-2g.35gb: 1
             limits:
-              cpu: "12"
-              memory: "26Gi"
+              cpu: "16"
+              memory: "32Gi"
               nvidia.com/mig-2g.35gb: 1
           volumeMounts:
             - name: storage
