@@ -20,8 +20,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from detectron2.data import DatasetCatalog, MetadataCatalog
-
 _IDD_PANOPTIC_REGISTERED = False
 
 
@@ -75,6 +73,7 @@ def _load_records(
                     "id": int(s["id"]),
                     "category_id": dataset_to_contig[int(s["category_id"])],
                     "iscrowd": int(s.get("iscrowd", 0)),
+                    "area": int(s.get("area", 0)),
                 }
                 for s in ann["segments_info"]
             ],
@@ -130,7 +129,20 @@ def _build_metadata(json_path: Path) -> dict[str, Any]:
     }
 
 
+def load_split(repo_root: str | Path, split: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Records + metadata for one split without touching detectron2's catalogs."""
+    data_root = Path(repo_root).resolve() / "data" / "idd_full"
+    json_path = data_root / "gtFine" / f"{split}_panoptic.json"
+    meta = _build_metadata(json_path)
+    records = _load_records(json_path, data_root / "gtFine" / f"{split}_panoptic",
+                            data_root / "leftImg8bit" / split,
+                            dict(meta["stuff_dataset_id_to_contiguous_id"]))
+    return records, meta
+
+
 def register_idd_panoptic(repo_root: str | Path) -> None:
+    from detectron2.data import DatasetCatalog, MetadataCatalog
+
     global _IDD_PANOPTIC_REGISTERED
     if _IDD_PANOPTIC_REGISTERED:
         return
@@ -174,6 +186,8 @@ def register_idd_panoptic(repo_root: str | Path) -> None:
 
 
 if __name__ == "__main__":
+    from detectron2.data import DatasetCatalog
+
     here = Path(__file__).resolve().parent.parent.parent
     register_idd_panoptic(here)
     for n in ("idd_panoptic_train", "idd_panoptic_val"):

@@ -1,0 +1,8 @@
+# Exp A1: A0 + repeat-factor sampling over panoptic segments.
+# t=0.3 boosts bicycle, fence, guard rail, traffic light and bridge and makes
+# an epoch 1.26x longer; LVIS's t=0.1 only touches bicycle and traffic light
+# (+2 %), because IDD's tail is mild in image frequency.
+_BASE_: m2f_r50_idd_scratch.yaml
+
+IDD:
+  REPEAT_FACTOR_THRESHOLD: 0.3
