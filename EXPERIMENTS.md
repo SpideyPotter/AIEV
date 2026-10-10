@@ -769,6 +769,130 @@ directly to Mask2Former Swin-L for a leaderboard-grade run.
 
 ---
 
+## 2026-05-02/03 — Mask2Former Swin-L (Cityscapes init) on the DGX MIG slice
+
+**What:** Fine-tuned M2F Swin-L from `pretrain/swinl_cityscapes_panoptic.pkl`
+with [configs/m2f_swinl_idd_panoptic.yaml](configs/m2f_swinl_idd_panoptic.yaml)
+(batch 4, 512×1024 crop, AdamW 1e-4, WarmupPolyLR, AMP, 200 queries) on one
+`mig-2g.35gb` slice. Training stopped at ~47k of 60k iters; last checkpoint
+`model_0044999.pth`.
+
+**Two silent failures found before the run that worked** (each produced
+val PQ ≈ 1.7 while the loss looked healthy):
+1. Thing and stuff contiguous ids both started at 0, so the class head could
+   not separate e.g. autorickshaw from drivable-fallback. Fixed in
+   [src/datasets/idd_panoptic.py](src/datasets/idd_panoptic.py) by putting
+   things at `[0, 9)` and stuff at `[9, 26)` and remapping `category_id` at
+   registration time (the M2F panoptic mapper does no remap of its own).
+2. `INPUT.SIZE_DIVISIBILITY: 32` with a crop larger than 32 makes the mapper
+   call `F.pad` with negative padding, which crops every training sample to
+   32×32. Fixed with `SIZE_DIVISIBILITY: -1`.
+
+**Result (val, 2,036 images):**
+
+| Iter | PQ | SQ | RQ |
+|---:|---:|---:|---:|
+| 5k  | 46.16 | 77.11 | 58.54 |
+| 25k | 49.98 | 77.67 | 63.19 |
+| 45k | **50.97** | 77.82 | 64.35 |
+
+Things 45.69 / Stuff 53.76. Test predictions packaged at
+`outputs/submission_autonue.zip` but **not submitted**.
+
+**Caveat:** this model uses external (Cityscapes + ImageNet-21k) weights. It
+is only usable as an external-data reference row; see the 2026-10-10 entry.
+
+---
+
+## 2026-05-07/08 — Cloud inference API + GTA-V client
+
+**What:** [scripts/cloud_inference_api.py](scripts/cloud_inference_api.py)
+(FastAPI, `POST /segment`, `GET /health`) served from
+[k8s/job_inference.yaml](k8s/job_inference.yaml) with ClusterIP and NodePort
+(30081) services; IronPython client in
+[gta/panoptic_frame_client.py](gta/panoptic_frame_client.py). Response carries
+`semantic_id_png_base64` and `road_mask_png_base64` for control logic.
+
+**Result:** ~0.8 s/frame (~1.3 FPS) with Swin-L. `kubectl port-forward` drops
+under streaming load; the stable path is an SSH tunnel to the worker NodePort.
+Start-up steps in [gta/server_instructinos.md](gta/server_instructinos.md).
+
+---
+
+## 2026-06-15/18 — NFS stall on the worker pod, then per-class PQ
+
+**What:** Val inference in the dev pod hung with Python in `D` state. The pod
+runs on `bmu-worker` and sees the repo over NFS from the headnode; metadata ops
+took seconds (`ls` ~40 s, `stat` ~2–5 s) and large reads ran at 0.2–24 MB/s.
+IT fixed the NFS server on 2026-06-17 (`ls` back to ~2 ms).
+
+**Lesson:** keep NFS as cold storage. Write thousands of prediction PNGs to
+`/tmp`, and stage checkpoints to `/dev/shm` if NFS degrades again.
+
+**Per-class PQ** for `model_0044999.pth` saved to
+`outputs/perclass_pq_44999.txt`. Weakest classes:
+
+| Class | PQ | SQ | RQ | Failure type |
+|---|---:|---:|---:|---|
+| vehicle fallback | 7.5 | 75.2 | 10.0 | recognised as a segment, wrong label |
+| obs-str-bar-fallback | 26.8 | 66.5 | 40.3 | ambiguous catch-all |
+| fence | 30.4 | 70.8 | 42.9 | thin structure |
+| bicycle | 33.8 | 75.9 | 44.4 | rare + small (9.3 % of train images) |
+| traffic light | 34.4 | 69.5 | 49.5 | rare + tiny (5.6 %, 0.007 % of pixels) |
+| rail track | 34.5 | 71.2 | 48.5 | ambiguous |
+
+The script that produced it was not committed; it was recreated on
+2026-10-10 as [scripts/eval_val_perclass_pq.py](scripts/eval_val_perclass_pq.py).
+
+---
+
+## 2026-10-10 — Pivot: no external weights; long-tail ablation programme
+
+**Constraint:** no pretrained weights of any kind (no ImageNet, no
+Cityscapes). Every number in the paper must come from random init.
+
+**Plan (workshop paper first, conference extension second):**
+- **A0** Mask2Former R50 from scratch:
+  [configs/m2f_r50_idd_scratch.yaml](configs/m2f_r50_idd_scratch.yaml).
+  GroupNorm backbone (FrozenBN cannot train from random init), `FREEZE_AT 0`,
+  `BACKBONE_MULTIPLIER 1.0`, IDD pixel statistics, 100 queries, 150k iters.
+- **A1** repeat-factor sampling over panoptic segments (`IDD.REPEAT_FACTOR_THRESHOLD`).
+- **A2** copy-paste of rare-class segments (`IDD.COPY_PASTE.*`).
+- **A3** inverse-frequency class weights on the classification CE (`IDD.CLASS_WEIGHT.*`).
+- **A4** inference-only sweep over `OBJECT_MASK_THRESHOLD` and query count.
+- Conference extension: Path D (auxiliary level2Id hierarchy loss,
+  `IDD.HIERARCHY.*`) or Path B (self-supervised pretraining on IDD images
+  only; needs supervisor sign-off). Decision rule in the results ledger.
+
+**Train-split class statistics** (from `train_panoptic.json`):
+
+| Class | % images | % pixels |
+|---|---:|---:|
+| traffic light | 5.6 | 0.007 |
+| bicycle | 9.3 | 0.028 |
+| traffic sign | 35.0 | 0.088 |
+| guard rail | 11.2 | 0.140 |
+| vehicle fallback | 61.7 | 0.316 |
+| road | 97.7 | 26.467 |
+
+---
+
+## Results ledger (from-scratch experiments)
+
+All rows: val split (2,036 images), evaluated with
+`scripts/eval_val_perclass_pq.py`. Tail PQ = mean PQ over bicycle,
+traffic light, traffic sign, guard rail, bridge, vehicle fallback.
+
+| Exp | Config | Iters | PQ | PQ_th | PQ_st | Tail PQ | Notes |
+|---|---|---:|---:|---:|---:|---:|---|
+| ref | Swin-L, Cityscapes init (external data) | 45k | 50.97 | 45.69 | 53.76 | 37.3 | reference only |
+| A0 | m2f_r50_idd_scratch | 150k | | | | | |
+| A1 | + repeat-factor sampling | 150k | | | | | |
+| A2 | + copy-paste | 150k | | | | | |
+| A3 | + class-weighted CE | 150k | | | | | |
+
+---
+
 ## Open questions (carry forward)
 
 - **GPU access?** Lab machine, Colab, Kaggle, or Paperspace? Decides batch
