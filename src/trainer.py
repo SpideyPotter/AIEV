@@ -31,6 +31,18 @@ class IDDTrainer(Trainer):
             model.criterion.empty_weight[:k] = torch.tensor(weights)
             logger.info("Class-weighted CE (%s): %s", cw.MODE,
                         [round(w, 2) for w in model.criterion.empty_weight.tolist()])
+        h = cfg.IDD.HIERARCHY
+        if h.ENABLED:
+            from detectron2.data import MetadataCatalog
+
+            from src.datasets.hierarchy import coarse_ids
+            from src.hierarchy_loss import make_hierarchical
+
+            classes = MetadataCatalog.get(cfg.DATASETS.TRAIN[0]).stuff_classes
+            groups = coarse_ids(classes, h.LEVEL)
+            make_hierarchical(model.criterion, groups, h.LOSS_WEIGHT)
+            logger.info("Hierarchical CE: level%d, %d groups, weight %.2f: %s", h.LEVEL,
+                        max(groups) + 1, h.LOSS_WEIGHT, dict(zip(classes, groups)))
         return model
 
     @classmethod

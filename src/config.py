@@ -33,7 +33,10 @@ def add_idd_config(cfg) -> None:
     cfg.IDD.CLASS_WEIGHT.POWER = 0.5
     cfg.IDD.CLASS_WEIGHT.MAX = 5.0
 
-    # Path D: auxiliary coarse-level (IDD level2Id) classification loss.
+    # Path D: auxiliary coarse-level classification loss (src/hierarchy_loss.py).
+    # LEVEL 2 = IDD level2Id (16 groups), 1 = level1Id (7 groups).
+    # LOSS_WEIGHT multiplies the fine CE weight (CLASS_WEIGHT in Mask2Former).
     cfg.IDD.HIERARCHY = CN()
     cfg.IDD.HIERARCHY.ENABLED = False
+    cfg.IDD.HIERARCHY.LEVEL = 2
     cfg.IDD.HIERARCHY.LOSS_WEIGHT = 1.0

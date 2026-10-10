@@ -1,0 +1,9 @@
+# Path D1: A0 + auxiliary level2 (16-group) classification loss.
+# Once A1-A3 are in, rebase _BASE_ onto the best long-tail recipe.
+_BASE_: m2f_r50_idd_scratch.yaml
+
+IDD:
+  HIERARCHY:
+    ENABLED: True
+    LEVEL: 2
+    LOSS_WEIGHT: 1.0

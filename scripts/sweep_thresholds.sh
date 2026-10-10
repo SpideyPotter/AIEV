@@ -26,7 +26,7 @@ for om in $OBJECT_THRESHOLDS; do
         echo "=== OBJECT_MASK_THRESHOLD=$om OVERLAP_THRESHOLD=$ov ==="
         python3 scripts/eval_val_perclass_pq.py \
             --config-file "$CONFIG" --weights "$WEIGHTS" \
-            --out-dir "/tmp/sweep_om${om}_ov${ov}/pngs" \
+            --out-dir "/tmp/sweep_om${om}_ov${ov}/pngs" --hierarchy-levels \
             --metrics-json "$OUT/sweep_om${om}_ov${ov}.json" \
             MODEL.MASK_FORMER.TEST.OBJECT_MASK_THRESHOLD "$om" \
             MODEL.MASK_FORMER.TEST.OVERLAP_THRESHOLD "$ov" \

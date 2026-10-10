@@ -43,6 +43,7 @@ from PIL import Image  # noqa: E402
 from mask2former import add_maskformer2_config  # noqa: E402
 from src.datasets.idd_panoptic import _resolve_rgb_path, register_idd_panoptic  # noqa: E402
 from src.config import add_idd_config  # noqa: E402
+from src.eval_coarse import coarse_pq  # noqa: E402
 
 register_idd_panoptic(REPO)
 
@@ -132,10 +133,11 @@ def image_frequency(gt: dict, image_ids: set) -> Counter:
     return freq
 
 
-def format_report(results: dict, gt: dict, n_images: int, image_ids: set) -> str:
+def format_report(results: dict, gt: dict, n_images: int, image_ids: set,
+                  title: str = "Per-class PQ") -> str:
     cats = {c["id"]: c for c in gt["categories"]}
     freq = image_frequency(gt, image_ids)
-    lines = ["", "=== Per-class PQ (sorted ascending) ==="]
+    lines = ["", f"=== {title} (sorted ascending) ==="]
     per = results["per_class"]
     for cid in sorted(per, key=lambda k: per[k]["pq"]):
         r, c = per[cid], cats[cid]
@@ -160,6 +162,8 @@ def main() -> int:
     p.add_argument("--max-images", type=int, default=0, help="0 = full val split")
     p.add_argument("--report", default=None, help="Write the text report here")
     p.add_argument("--metrics-json", default=None, help="Write aggregate + per-class JSON here")
+    p.add_argument("--hierarchy-levels", type=int, nargs="*", default=[2, 1],
+                   help="Also report PQ at these IDD coarse levels (none: flag with no values)")
     p.add_argument("opts", nargs=argparse.REMAINDER, help="Config overrides KEY VALUE ...")
     args = p.parse_args()
 
@@ -189,6 +193,17 @@ def main() -> int:
                              pred_folder=str(out_dir))
 
     report = format_report(results, gt, len(image_ids), image_ids)
+    coarse = {}
+    for level in args.hierarchy_levels:
+        res, coarse_gt = coarse_pq(gt_eval_json, GT_ROOT / "val_panoptic", pred_json, out_dir,
+                                   level, out_dir.parent / f"idd_val_level{level}")
+        report += "\n" + format_report(res, coarse_gt, len(image_ids), image_ids,
+                                       title=f"Level{level} PQ")
+        names = {c["id"]: c["name"] for c in coarse_gt["categories"]}
+        coarse[f"level{level}"] = {
+            "aggregate": {k: res[k] for k in ("All", "Things", "Stuff")},
+            "per_class": {names[k]: v for k, v in res["per_class"].items()},
+        }
     print(report)
     header = (f"[perclass-pq] weights={args.weights}\n"
               f"[perclass-pq] config={args.config_file}\n"
@@ -203,6 +218,7 @@ def main() -> int:
             "images": len(image_ids),
             "aggregate": {k: results[k] for k in ("All", "Things", "Stuff")},
             "per_class": {cats[k]: v for k, v in results["per_class"].items()},
+            "coarse": coarse,
         }, indent=2))
     return 0
 

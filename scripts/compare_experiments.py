@@ -37,7 +37,9 @@ def load(path: Path) -> dict:
         d = json.loads(path.read_text())
         scale = lambda r: {k: 100 * r[k] for k in ("pq", "sq", "rq")}  # noqa: E731
         return {"aggregate": {k: scale(v) for k, v in d["aggregate"].items()},
-                "per_class": {k: scale(v) for k, v in d["per_class"].items()}}
+                "per_class": {k: scale(v) for k, v in d["per_class"].items()},
+                "coarse": {lv: 100 * c["aggregate"]["All"]["pq"]
+                           for lv, c in d.get("coarse", {}).items()}}
     agg, per = {}, {}
     for line in path.read_text().splitlines():
         if m := _ROW.match(line):
@@ -111,11 +113,14 @@ def main() -> int:
     for f in matches:
         results[label_for(Path(f))] = load(Path(f))
 
-    print(f"| Exp | PQ | PQ_th | PQ_st | SQ | RQ | Tail PQ |\n|---|---:|---:|---:|---:|---:|---:|")
+    print("| Exp | PQ | PQ_th | PQ_st | SQ | RQ | Tail PQ | L2 PQ | L1 PQ |\n"
+          "|---|---:|---:|---:|---:|---:|---:|---:|---:|")
     for name, r in results.items():
-        a = r["aggregate"]
+        a, c = r["aggregate"], r.get("coarse", {})
+        lv = lambda k: f"{c[k]:.2f}" if k in c else "-"  # noqa: E731
         print(f"| {name} | {a['All']['pq']:.2f} | {a['Things']['pq']:.2f} | {a['Stuff']['pq']:.2f} "
-              f"| {a['All']['sq']:.2f} | {a['All']['rq']:.2f} | {tail_pq(r):.2f} |")
+              f"| {a['All']['sq']:.2f} | {a['All']['rq']:.2f} | {tail_pq(r):.2f} "
+              f"| {lv('level2')} | {lv('level1')} |")
 
     base = results.get(args.baseline)
     others = [k for k in results if k not in (args.baseline, "reference")]

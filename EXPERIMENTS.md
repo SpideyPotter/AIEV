@@ -875,6 +875,55 @@ Cityscapes). Every number in the paper must come from random init.
 | vehicle fallback | 61.7 | 0.316 |
 | road | 97.7 | 26.467 |
 
+**Implementation notes** (all switches in [src/config.py](src/config.py),
+wired in [src/trainer.py](src/trainer.py), default off):
+- A1 `repeat_factors` in [src/datasets/class_stats.py](src/datasets/class_stats.py).
+  IDD's tail is mild in *image* frequency, so LVIS's t=0.1 only touches
+  bicycle and traffic light (epoch x1.02). The config uses t=0.3 (epoch
+  x1.26; boosts bicycle, fence, guard rail, traffic light, bridge).
+  `python3 -m src.datasets.class_stats --thresholds 0.1 0.3` prints this.
+- A2 [src/datasets/copy_paste.py](src/datasets/copy_paste.py): pastes 1-3
+  segments of bicycle / traffic light / traffic sign / vehicle fallback from
+  another train image at the same location (50 % mirrored), before the
+  resize/crop augmentation. Pasted things get the smallest unused segment
+  ids (max+1 can overflow the 24-bit RGB id encoding); pasted stuff merges
+  into an existing same-class segment; fully covered segments are dropped.
+- A3 writes `(n_max / n_c) ** 0.5` (image frequency, clamped at 5) into
+  `SetCriterion.empty_weight`; no-object stays 0.1. Largest weights:
+  traffic light 4.22, bicycle 3.27, bridge 3.13, guard rail 2.97.
+- A4 `scripts/sweep_thresholds.sh <config> <weights>` (inference only) and
+  [configs/m2f_r50_idd_scratch_a4_q200.yaml](configs/m2f_r50_idd_scratch_a4_q200.yaml)
+  (200 queries, needs a training run).
+- Path D [src/hierarchy_loss.py](src/hierarchy_loss.py): coarse logit =
+  log-sum-exp of the member fine logits (= log of summed probabilities;
+  class head unchanged, no new parameters), CE on matched queries only,
+  added at every decoder layer with weight `LOSS_WEIGHT x` the fine CE
+  weight. Groups from [src/datasets/hierarchy.py](src/datasets/hierarchy.py)
+  (IDD level2Id, 16 groups: e.g. truck/bus/vehicle fallback, pole/obs-str-bar-fallback).
+  Config [configs/m2f_r50_idd_scratch_d1_hier.yaml](configs/m2f_r50_idd_scratch_d1_hier.yaml).
+- Coarse PQ: `eval_val_perclass_pq.py` now also reports PQ at level2 and
+  level1 ([src/eval_coarse.py](src/eval_coarse.py); stuff segments of the
+  same coarse class are merged per image). On 30 val images the Swin-L
+  reference has vehicle fallback PQ 26 but "large vehicle" (level2) PQ 54:
+  most fallback errors are confusions inside the group, which is what
+  Path D targets.
+
+All hooks were checked on the GPU inside the A0 pod (loader batches,
+copy-paste demo image, one forward/backward with A3 and D1 losses).
+
+**Running the queue.** One MIG slice, so runs are sequential (~17.5 h each):
+
+```bash
+# on the headnode; waits for the slice to be free, skips jobs that exist
+nohup setsid bash scripts/queue_jobs.sh configs/m2f_r50_idd_scratch_a1_rfs.yaml \
+    configs/m2f_r50_idd_scratch_a2_copypaste.yaml configs/m2f_r50_idd_scratch_a3_cw.yaml \
+    >> outputs/logs/queue.log 2>&1 &
+python3 scripts/compare_experiments.py --decide   # ledger + Path D/B decision
+```
+
+Started 2026-10-10 behind A0 (A1 -> A2 -> A3). Each Job writes
+`outputs/<stem>/perclass_pq.{txt,json}` when it finishes.
+
 ---
 
 ## Results ledger (from-scratch experiments)
@@ -882,14 +931,27 @@ Cityscapes). Every number in the paper must come from random init.
 All rows: val split (2,036 images), evaluated with
 `scripts/eval_val_perclass_pq.py`. Tail PQ = mean PQ over bicycle,
 traffic light, traffic sign, guard rail, bridge, vehicle fallback.
+L2 / L1 PQ = PQ at IDD level2 (16 classes) / level1 (7 classes).
+`scripts/compare_experiments.py` prints these rows from the JSON reports.
 
-| Exp | Config | Iters | PQ | PQ_th | PQ_st | Tail PQ | Notes |
-|---|---|---:|---:|---:|---:|---:|---|
-| ref | Swin-L, Cityscapes init (external data) | 45k | 50.97 | 45.69 | 53.76 | 37.3 | reference only |
-| A0 | m2f_r50_idd_scratch | 150k | | | | | |
-| A1 | + repeat-factor sampling | 150k | | | | | |
-| A2 | + copy-paste | 150k | | | | | |
-| A3 | + class-weighted CE | 150k | | | | | |
+| Exp | Config | Iters | PQ | PQ_th | PQ_st | Tail PQ | L2 PQ | L1 PQ | Notes |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+| ref | Swin-L, Cityscapes init (external data) | 45k | 50.97 | 45.69 | 53.76 | 37.3 | | | reference only |
+| A0 | m2f_r50_idd_scratch | 150k | | | | | | | running |
+| A1 | + repeat-factor sampling (t=0.3) | 150k | | | | | | | queued |
+| A2 | + copy-paste | 150k | | | | | | | queued |
+| A3 | + class-weighted CE | 150k | | | | | | | queued |
+| A4 | A0 weights, threshold sweep / 200 queries | — / 150k | | | | | | | |
+| D1 | + level2 hierarchy loss | 150k | | | | | | | after decision |
+
+**Conference-extension decision** (`compare_experiments.py --decide`, run
+once A3 is in): Path D if the fallback classes' SQ−RQ gap exceeds the
+other classes' by >10 points and one of them is in the bottom three;
+Path B if the best scratch PQ is <80 % of 50.97 *and* its SQ is >5 below
+the reference (masks weak everywhere); otherwise D. Applied to the
+external-data reference model the rule already says D (fallback gap 45.7
+vs 10.8). Path B still needs supervisor sign-off that SSL on IDD's own
+images counts as "no external weights".
 
 ---
 
