@@ -13,8 +13,11 @@ modern Pillow + Windows we have to patch:
    which re-imports the module so the module-level ``args`` is None in
    workers and ``process_folder`` crashes with ``AttributeError``.
 
+3. The pod-installed ``panopticapi/evaluation.py`` — see ``PQ_POOL_OLD``.
+
 The script is idempotent: re-running on already-patched files is a no-op.
-Run it whenever ``external/public-code`` is re-cloned.
+Run it whenever ``external/public-code`` is re-cloned or ``.local`` is
+reinstalled (the panopticapi patch must run inside a pod; the file is root-owned).
 """
 
 from __future__ import annotations
@@ -119,6 +122,14 @@ RESIZE_NEW = """    img = Image.open(f)
     # the per-segment loop ~60x and corrupting the panoptic GT.
     img = img.resize((1280, 720), Image.NEAREST)"""
 
+# panopticapi sizes its Pool with cpu_count(), which inside a k8s pod is the
+# host's 224 cores, not the pod's 8. Forking 224 copies of a 13 GB trainer
+# OOM-killed A0 at its 140k in-loop eval. The pod's affinity mask also shows
+# all 224 cores, so cap it at the pod's DATALOADER.NUM_WORKERS.
+PANOPTICAPI = REPO / ".local" / "local" / "lib" / "python3.10" / "dist-packages" / "panopticapi"
+PQ_POOL_OLD = "    cpu_num = multiprocessing.cpu_count()"
+PQ_POOL_NEW = "    cpu_num = min(multiprocessing.cpu_count(), 8)"
+
 PATCHES = [
     (PUB / "preperation" / "json2labelImg.py",        PILLOW_OLD,         PILLOW_NEW),
     (PUB / "preperation" / "json2instanceImg.py",     PILLOW_OLD,         PILLOW_NEW),
@@ -128,6 +139,7 @@ PATCHES = [
     (PUB / "preperation" / "cityscape_panoptic_gt.py", PANOPTIC_POOL_OLD, PANOPTIC_POOL_NEW),
     (PUB / "preperation" / "cityscape_panoptic_gt.py", PATH_OLD,          PATH_NEW),
     (PUB / "preperation" / "cityscape_panoptic_gt.py", RESIZE_OLD,        RESIZE_NEW),
+    (PANOPTICAPI / "evaluation.py",                    PQ_POOL_OLD,       PQ_POOL_NEW),
 ]
 
 
