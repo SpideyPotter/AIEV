@@ -11,6 +11,9 @@ from detectron2.config import CfgNode as CN
 def add_idd_config(cfg) -> None:
     cfg.IDD = CN()
 
+    # Periodic checkpoints kept on disk (0 = keep all). Each R50 one is 0.53 GB.
+    cfg.IDD.MAX_CHECKPOINTS = 2
+
     # Exp A1: LVIS-style repeat-factor sampling over panoptic segments_info.
     # r(c) = max(1, sqrt(t / f(c))), f(c) = fraction of train images containing c.
     # 0.0 disables it (uniform TrainingSampler).

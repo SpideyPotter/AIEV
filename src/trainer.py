@@ -10,6 +10,7 @@ import logging
 import torch
 from detectron2.data import build_detection_train_loader, get_detection_dataset_dicts
 from detectron2.data.samplers import RepeatFactorTrainingSampler
+from detectron2.engine import hooks
 from train_net import Trainer
 
 from src.datasets.class_stats import class_loss_weights, repeat_factors
@@ -18,6 +19,17 @@ logger = logging.getLogger("idd.trainer")
 
 
 class IDDTrainer(Trainer):
+    def build_hooks(self):
+        ret = super().build_hooks()
+        keep = self.cfg.IDD.MAX_CHECKPOINTS
+        if keep > 0:
+            # The shared root disk fills up: keep only the newest periodic
+            # checkpoints written by this process (model_final is separate).
+            ret = [hooks.PeriodicCheckpointer(self.checkpointer, self.cfg.SOLVER.CHECKPOINT_PERIOD,
+                                              max_to_keep=keep)
+                   if isinstance(h, hooks.PeriodicCheckpointer) else h for h in ret]
+        return ret
+
     @classmethod
     def build_model(cls, cfg):
         model = super().build_model(cfg)
