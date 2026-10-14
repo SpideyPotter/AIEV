@@ -937,10 +937,10 @@ L2 / L1 PQ = PQ at IDD level2 (16 classes) / level1 (7 classes).
 | Exp | Config | Iters | PQ | PQ_th | PQ_st | Tail PQ | L2 PQ | L1 PQ | Notes |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---|
 | ref | Swin-L, Cityscapes init (external data) | 45k | 50.97 | 45.69 | 53.76 | 37.3 | | | reference only |
-| A0 | m2f_r50_idd_scratch | 150k | | | | | | | running |
-| A1 | + repeat-factor sampling (t=0.3) | 150k | | | | | | | queued |
-| A2 | + copy-paste | 150k | | | | | | | queued |
-| A3 | + class-weighted CE | 150k | | | | | | | queued |
+| A0 | m2f_r50_idd_scratch | 150k | 45.19 | 42.12 | 46.82 | 27.51 | 51.07 | 64.04 | vehicle fallback PQ 4.8 (SQ 71, RQ 6.8) |
+| A1 | + repeat-factor sampling (t=0.3) | 150k | **45.53** | **42.51** | 47.13 | **29.38** | 50.96 | 63.91 | traffic light +7.6, bicycle +3.7 |
+| A2 | + copy-paste | 150k | 45.36 | 42.01 | **47.14** | 28.78 | 50.83 | 63.94 | traffic light +4.6, traffic sign +2.2; led A0 by 0.6-1.0 from 30k-100k |
+| A3 | + class-weighted CE | 150k | 45.09 | 42.22 | 46.62 | 27.94 | 50.77 | 63.80 | bicycle +3.9, fence +1.9, bridge -2.8 |
 | A4 | A0 weights, threshold sweep / 200 queries | — / 150k | | | | | | | |
 | D1 | + level2 hierarchy loss | 150k | | | | | | | after decision |
 
@@ -952,6 +952,15 @@ the reference (masks weak everywhere); otherwise D. Applied to the
 external-data reference model the rule already says D (fallback gap 45.7
 vs 10.8). Path B still needs supervisor sign-off that SSL on IDD's own
 images counts as "no external weights".
+
+**Outcome (2026-10-14, A0-A3 in, one seed each):** Path D. Bottom three
+classes are vehicle fallback, traffic light, obs-str-bar-fallback; the
+fallback SQ-RQ gap is 51.1 vs 15.4 for the rest. Path B's condition is
+ruled out (best scratch PQ 45.53 is 89 % of the reference). None of the
+three data/loss fixes moved vehicle fallback by more than +0.7 PQ; the
+long-tail tricks help the rare-but-well-defined classes (traffic light,
+bicycle) instead. Aggregate differences of 0.2-0.3 PQ are within
+single-seed noise; the per-class tail deltas are the reliable signal.
 
 ---
 
